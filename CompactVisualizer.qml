@@ -4,7 +4,10 @@ Canvas {
   id: root
 
   property var bands: []
+  property var channelLevels: []
+  property var channelPeaks: []
   property string mode: "bars"
+  property bool active: true
   property color foregroundColor: "#c5c9c5"
   property color accentColor: "#658594"
   property color lowColor: "#8a9a7b"
@@ -13,6 +16,17 @@ Canvas {
   property int frame: 0
   property var peaks: []
   property var terrainHistory: []
+  property int terrainHead: 0
+  property int terrainCount: 0
+  readonly property var logoGlyphs: [
+    ["01110", "10000", "10000", "10000", "10000", "10000", "01110"],
+    ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+    ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
+    ["11110", "10001", "10001", "11110", "10000", "10000", "10000"]
+  ]
+  readonly property var logoLetterBands: [0.02, 0.2, 0.4, 0.58, 0.78, 0.98]
 
   antialiasing: true
   renderTarget: Canvas.FramebufferObject
@@ -75,6 +89,8 @@ Canvas {
               : Math.max(10, Math.min(24, bands.length || 10))
     var gap = variant === "columns" ? 1 : variant === "classicled" ? 2 : 1.5
     var barWidth = Math.max(1, (width - gap * (count - 1)) / count)
+    var fillGradient = variant === "bars" || variant === "columns" || variant === "classicpeak"
+                     ? spectrumGradient(ctx) : null
     ctx.lineWidth = 1
 
     for (var i = 0; i < count; i++) {
@@ -103,7 +119,7 @@ Canvas {
           ctx.fillRect(x, row, barWidth, segment)
         }
       } else {
-        ctx.fillStyle = spectrumGradient(ctx)
+        ctx.fillStyle = fillGradient
         ctx.fillRect(x, y, barWidth, barHeight)
       }
 
@@ -285,11 +301,16 @@ Canvas {
 
   function paintTerrain(ctx) {
     var samples = Math.max(36, Math.floor(width / 2))
+    var missing = samples - terrainCount
     ctx.beginPath()
     ctx.moveTo(0, height)
     for (var i = 0; i < samples; i++) {
-      var historyIndex = terrainHistory.length - samples + i
-      var level = historyIndex >= 0 ? terrainHistory[historyIndex] : 0
+      var level = 0
+      if (i >= missing && terrainHistory.length === samples) {
+        var logicalIndex = i - missing
+        var historyIndex = (terrainHead - terrainCount + logicalIndex + samples) % samples
+        level = terrainHistory[historyIndex] || 0
+      }
       ctx.lineTo(i * width / (samples - 1), height - level * height * 0.88)
     }
     ctx.lineTo(width, height)
@@ -617,17 +638,22 @@ Canvas {
   }
 
   function paintStereo(ctx) {
-    var levels = [average(0, 0.5), average(0.5, 1)]
     var segments = Math.max(20, Math.floor((width - 10) / 4))
     var segmentWidth = (width - 10) / segments
     ctx.font = Math.max(6, height * 0.25) + "px monospace"
     ctx.textBaseline = "middle"
     for (var channel = 0; channel < 2; channel++) {
+      var hasChannelLevels = Array.isArray(channelLevels) && channelLevels.length >= 2
+      var level = hasChannelLevels ? clamp(channelLevels[channel])
+                  : channel === 0 ? average(0, 0.5) : average(0.5, 1)
+      var peakLevel = Array.isArray(channelPeaks) && channelPeaks.length >= 2
+                    ? clamp(channelPeaks[channel]) : level
       var y = (channel + 0.5) * height / 2
       ctx.fillStyle = foregroundColor
       ctx.fillText(channel === 0 ? "L" : "R", 0, y)
-      var lit = Math.round(levels[channel] * segments)
-      var peak = Math.min(segments - 1, Math.max(lit, Math.round((peaks[channel] || levels[channel]) * segments)))
+      var lit = Math.round(level * segments)
+      var peak = peakLevel > 0
+               ? Math.min(segments - 1, Math.max(0, Math.round(peakLevel * segments) - 1)) : -1
       for (var i = 0; i < segments; i++) {
         var ratio = i / Math.max(1, segments - 1)
         ctx.fillStyle = spectrumColor(ratio)
@@ -639,14 +665,6 @@ Canvas {
   }
 
   function paintLogo(ctx) {
-    var glyphs = [
-      ["01110", "10000", "10000", "10000", "10000", "10000", "01110"],
-      ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-      ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-      ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-      ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
-      ["11110", "10001", "10001", "11110", "10000", "10000", "10000"]
-    ]
     var totalUnits = 40
     var scaleX = Math.max(1, Math.floor(width * 0.9 / totalUnits))
     var scaleY = Math.max(1, Math.floor(height * 0.78 / 7))
@@ -654,14 +672,13 @@ Canvas {
     var renderedHeight = 7 * scaleY
     var offsetX = (width - renderedWidth) / 2
     var offsetY = (height - renderedHeight) / 2
-    var letterBands = [0.02, 0.2, 0.4, 0.58, 0.78, 0.98]
-    for (var letter = 0; letter < glyphs.length; letter++) {
-      var energy = bandAt(letterBands[letter])
+    for (var letter = 0; letter < logoGlyphs.length; letter++) {
+      var energy = bandAt(logoLetterBands[letter])
       var bounce = Math.sin(frame * 0.06 + letter * 0.9) * 1.2 - energy * 1.2
       var letterX = offsetX + letter * 7 * scaleX
       for (var row = 0; row < 7; row++) {
         for (var col = 0; col < 5; col++) {
-          if (glyphs[letter][row].charAt(col) !== "1")
+          if (logoGlyphs[letter][row].charAt(col) !== "1")
             continue
           var fill = energy * energy * 0.38 + 0.62
           var lit = seeded(letter * 97 + row * 11 + col, frame >> 2) <= fill
@@ -678,22 +695,35 @@ Canvas {
   function updateTerrain() {
     if (mode !== "terrain")
       return
-    var next = terrainHistory.slice(0)
-    next.push(Math.min(1, average(0, 1) + seeded(frame, 81) * 0.12))
     var limit = Math.max(36, Math.floor(width / 2))
-    if (next.length > limit)
-      next = next.slice(next.length - limit)
-    terrainHistory = next
+    if (terrainHistory.length !== limit) {
+      var buffer = []
+      for (var i = 0; i < limit; i++)
+        buffer.push(0)
+      terrainHistory = buffer
+      terrainHead = 0
+      terrainCount = 0
+    }
+    terrainHistory[terrainHead] = Math.min(1, average(0, 1) + seeded(frame, 81) * 0.12)
+    terrainHead = (terrainHead + 1) % limit
+    terrainCount = Math.min(limit, terrainCount + 1)
   }
 
   function updatePeaks() {
     var count = Math.max(10, Math.min(24, bands.length || 10))
-    var next = []
+    var next = peaks
+    var resized = next.length !== count
+    if (resized) {
+      next = []
+      for (var p = 0; p < count; p++)
+        next.push(0)
+    }
     for (var i = 0; i < count; i++) {
       var value = bandAt((i + 0.5) / count)
-      next.push(Math.max(value, (peaks[i] || 0) - 0.025))
+      next[i] = Math.max(value, (next[i] || 0) - 0.04)
     }
-    peaks = next
+    if (resized)
+      peaks = next
   }
 
   onPaint: {
@@ -758,9 +788,13 @@ Canvas {
     updatePeaks()
     requestPaint()
   }
+  onChannelLevelsChanged: requestPaint()
+  onChannelPeaksChanged: requestPaint()
   onModeChanged: {
     peaks = []
     terrainHistory = []
+    terrainHead = 0
+    terrainCount = 0
     requestPaint()
   }
   onForegroundColorChanged: requestPaint()
@@ -773,13 +807,11 @@ Canvas {
 
   Timer {
     interval: 50
-    running: root.visible
+    running: root.active
     repeat: true
     onTriggered: {
       root.frame++
-      root.updatePeaks()
       root.updateTerrain()
-      root.requestPaint()
     }
   }
 }

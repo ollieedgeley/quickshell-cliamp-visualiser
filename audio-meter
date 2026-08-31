@@ -1,0 +1,32 @@
+#!/bin/sh
+
+set -eu
+
+meter_source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+meter_source="$meter_source_dir/audio-meter.c"
+meter_cache_root=${XDG_CACHE_HOME:-"$HOME/.cache"}
+meter_cache_dir="$meter_cache_root/quickshell-cliamp-visualiser"
+meter_binary="$meter_cache_dir/audio-meter"
+meter_lock="$meter_cache_dir/build.lock"
+
+umask 077
+mkdir -p "$meter_cache_dir"
+
+if [ ! -x "$meter_binary" ] || [ "$meter_source" -nt "$meter_binary" ]; then
+  exec 9>"$meter_lock"
+  flock 9
+  if [ ! -x "$meter_binary" ] || [ "$meter_source" -nt "$meter_binary" ]; then
+    meter_temporary="$meter_binary.$$"
+    trap 'find "$meter_temporary" -delete 2>/dev/null || true' EXIT HUP INT TERM
+    cc -O2 -std=c11 -Wall -Wextra -Werror "$meter_source" \
+      $(pkg-config --cflags --libs libpulse-simple) -lm \
+      -o "$meter_temporary"
+    chmod 700 "$meter_temporary"
+    mv -f "$meter_temporary" "$meter_binary"
+    trap - EXIT HUP INT TERM
+  fi
+  flock -u 9
+  exec 9>&-
+fi
+
+exec "$meter_binary"

@@ -15,6 +15,9 @@ Item {
   property var bands: []
   property string visualizerName: "Bars"
   property var cliampTheme: ({})
+  property var cliampLevels: []
+  property var cliampPeaks: []
+  property bool cliampMeterAvailable: false
 
   property color fallbackForeground: "#c5c9c5"
   property color fallbackAccent: "#658594"
@@ -37,6 +40,13 @@ Item {
   readonly property color lowColor: themeColor("green", fallbackGreen)
   readonly property color midColor: themeColor("yellow", fallbackYellow)
   readonly property color highColor: themeColor("red", fallbackRed)
+  readonly property bool audioFallbackRequired: playing
+                                                && rendererNeedsMeter(rendererKind)
+                                                && !cliampMeterAvailable
+  readonly property var visualizerLevels: cliampMeterAvailable
+                                          ? cliampLevels : audioMeter.levels
+  readonly property var visualizerPeaks: cliampMeterAvailable
+                                         ? cliampPeaks : audioMeter.peaks
 
   implicitWidth: Math.max(104, slotSize * 4)
   implicitHeight: slotSize
@@ -59,6 +69,24 @@ Item {
     return typeof value === "string" && value.length > 0 ? value : fallback
   }
 
+  function rendererNeedsMeter(renderer) {
+    return renderer === "stereo"
+  }
+
+  function normalizedPair(value) {
+    if (!Array.isArray(value) || value.length < 2)
+      return null
+    return [clamp01(value[0]), clamp01(value[1])]
+  }
+
+  function applyMeterData(data) {
+    var nextLevels = normalizedPair(data && (data.levels || data.stereo_levels))
+    var nextPeaks = normalizedPair(data && (data.peaks || data.stereo_peaks))
+    cliampMeterAvailable = nextLevels !== null
+    cliampLevels = nextLevels || []
+    cliampPeaks = nextPeaks || nextLevels || []
+  }
+
   function clamp01(value) {
     value = Number(value)
     if (!isFinite(value) || value <= 0)
@@ -71,6 +99,9 @@ Item {
   function clearBands() {
     if (bands.length)
       bands = []
+    cliampMeterAvailable = false
+    cliampLevels = []
+    cliampPeaks = []
   }
 
   function setPlaying(next) {
@@ -117,13 +148,13 @@ Item {
       var data = JSON.parse(String(line || ""))
       if (data && data.visualizer)
         visualizerName = String(data.visualizer)
+      applyMeterData(data)
       var raw = data && data.bands
       if (!Array.isArray(raw) || raw.length === 0)
         return
-      var next = []
       for (var i = 0; i < raw.length; i++)
-        next.push(clamp01(raw[i]))
-      bands = next
+        raw[i] = clamp01(raw[i])
+      bands = raw
     } catch (e) {
     }
   }
@@ -201,9 +232,17 @@ Item {
     onExited: root.clearBands()
   }
 
+  AudioMeter {
+    id: audioMeter
+    active: root.audioFallbackRequired
+  }
+
   CompactVisualizer {
     anchors.fill: parent
+    active: root.playing && root.rendererKind !== "none"
     bands: root.bands
+    channelLevels: root.visualizerLevels
+    channelPeaks: root.visualizerPeaks
     mode: root.rendererKind
     foregroundColor: root.foregroundColor
     accentColor: root.accentColor
