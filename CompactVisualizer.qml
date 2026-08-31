@@ -75,7 +75,6 @@ Canvas {
               : Math.max(10, Math.min(24, bands.length || 10))
     var gap = variant === "columns" ? 1 : variant === "classicled" ? 2 : 1.5
     var barWidth = Math.max(1, (width - gap * (count - 1)) / count)
-    ctx.strokeStyle = accentColor
     ctx.lineWidth = 1
 
     for (var i = 0; i < count; i++) {
@@ -85,11 +84,17 @@ Canvas {
       var y = height - barHeight
 
       if (variant === "barsoutline") {
-        ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, barWidth - 1), Math.max(1, barHeight - 1))
+        var outlineY = Math.max(0.5, y + 0.5)
+        ctx.strokeStyle = spectrumColor(1 - outlineY / height)
+        ctx.beginPath()
+        ctx.moveTo(x, outlineY)
+        ctx.lineTo(x + barWidth, outlineY)
+        ctx.stroke()
       } else if (variant === "barsdot") {
-        ctx.fillStyle = lowColor
-        for (var dotY = height - 2; dotY >= y; dotY -= 3)
+        for (var dotY = height - 2; dotY >= y; dotY -= 3) {
+          ctx.fillStyle = spectrumColor(1 - dotY / height)
           ctx.fillRect(x, dotY, Math.max(1, barWidth - 1), 1)
+        }
       } else if (variant === "bricks" || variant === "classicled") {
         var segment = variant === "classicled" ? 2 : 3
         for (var row = height - segment; row >= y; row -= segment + 1) {
@@ -118,10 +123,14 @@ Canvas {
         ctx.fillRect(dash, height * 0.55, 6, 1)
       ctx.globalAlpha = 1
     }
-    ctx.strokeStyle = heartbeat ? highColor : accentColor
     ctx.lineWidth = heartbeat ? 1.6 : 1.4
-    ctx.beginPath()
+    if (heartbeat) {
+      ctx.strokeStyle = highColor
+      ctx.beginPath()
+    }
     var points = Math.max(24, Math.floor(width / 2))
+    var previousX = 0
+    var previousY = height * 0.5
     for (var i = 0; i < points; i++) {
       var x = i * width / (points - 1)
       var phase = i / (points - 1)
@@ -136,12 +145,23 @@ Canvas {
         y = height * 0.5 + Math.sin(i * 1.35 + frame * 0.18)
             * energy * height * 0.42
       }
-      if (i === 0)
-        ctx.moveTo(x, y)
-      else
+      if (heartbeat) {
+        if (i === 0)
+          ctx.moveTo(x, y)
+        else
+          ctx.lineTo(x, y)
+      } else if (i > 0) {
+        ctx.strokeStyle = spectrumColor(1 - (previousY + y) / (2 * height))
+        ctx.beginPath()
+        ctx.moveTo(previousX, previousY)
         ctx.lineTo(x, y)
+        ctx.stroke()
+      }
+      previousX = x
+      previousY = y
     }
-    ctx.stroke()
+    if (heartbeat)
+      ctx.stroke()
   }
 
   function paintScatter(ctx) {
@@ -163,7 +183,6 @@ Canvas {
   function paintRain(ctx) {
     var columns = Math.max(18, Math.floor(width / 4))
     var columnWidth = width / columns
-    ctx.fillStyle = lowColor
     for (var i = 0; i < columns; i++) {
       var local = bandAt((i + 0.5) / columns)
       if (seeded(i, frame >> 4) > local + 0.18)
@@ -171,12 +190,22 @@ Canvas {
       var speed = 0.45 + seeded(i, 8) * 0.9
       var head = (seeded(i, 9) * height + frame * speed) % (height + 8) - 4
       var trail = 2 + local * 8
-      var gradient = ctx.createLinearGradient(0, head - trail, 0, head)
-      gradient.addColorStop(0, "transparent")
-      gradient.addColorStop(1, lowColor)
-      ctx.fillStyle = gradient
-      ctx.fillRect(i * columnWidth, head - trail, Math.max(1, columnWidth - 1), trail)
+      var tailLength = Math.max(1, trail * 0.45)
+      var bodyLength = Math.max(1, trail * 0.3)
+      var headLength = Math.max(1, trail - tailLength - bodyLength)
+      var dropX = i * columnWidth
+      var dropWidth = Math.max(1, columnWidth - 1)
+      ctx.globalAlpha = 0.58
+      ctx.fillStyle = lowColor
+      ctx.fillRect(dropX, head - trail, dropWidth, tailLength)
+      ctx.globalAlpha = 0.82
+      ctx.fillStyle = midColor
+      ctx.fillRect(dropX, head - trail + tailLength, dropWidth, bodyLength)
+      ctx.globalAlpha = 1
+      ctx.fillStyle = highColor
+      ctx.fillRect(dropX, head - headLength, dropWidth, headLength)
     }
+    ctx.globalAlpha = 1
   }
 
   function paintMatrix(ctx) {
@@ -232,7 +261,6 @@ Canvas {
   function paintSakura(ctx) {
     var energy = average(0, 1)
     var count = 12 + Math.floor(energy * 16)
-    ctx.fillStyle = highColor
     for (var i = 0; i < count; i++) {
       var speed = seeded(i, 21) > 0.66 ? 0.32 : 0.18
       var wrap = height + 10
@@ -240,6 +268,7 @@ Canvas {
       var sway = Math.sin(frame * 0.025 + seeded(i, 23) * Math.PI * 2) * 4
       var x = (seeded(i, 24) * width + sway + width) % width
       var size = 1.2 + seeded(i, 25) * 2.2
+      ctx.fillStyle = spectrumColor(1 - y / height)
       ctx.globalAlpha = 0.45 + seeded(i, 26) * 0.55
       ctx.save()
       ctx.translate(x, y)
@@ -296,19 +325,23 @@ Canvas {
 
   function paintScope(ctx) {
     var energy = average(0, 1)
-    ctx.strokeStyle = accentColor
     ctx.lineWidth = 1.2
-    ctx.beginPath()
+    var previousX = width / 2
+    var previousY = height / 2
     for (var i = 0; i <= 72; i++) {
       var angle = i / 72 * Math.PI * 2
       var x = width / 2 + Math.sin(angle * 2) * width * (0.18 + energy * 0.24)
       var y = height / 2 + Math.sin(angle * 3 + frame * 0.035) * height * (0.18 + energy * 0.3)
-      if (i === 0)
-        ctx.moveTo(x, y)
-      else
+      if (i > 0) {
+        ctx.strokeStyle = spectrumColor(1 - (previousY + y) / (2 * height))
+        ctx.beginPath()
+        ctx.moveTo(previousX, previousY)
         ctx.lineTo(x, y)
+        ctx.stroke()
+      }
+      previousX = x
+      previousY = y
     }
-    ctx.stroke()
   }
 
   function paintRetro(ctx) {
