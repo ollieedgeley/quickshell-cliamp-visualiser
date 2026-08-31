@@ -6,7 +6,7 @@ Item {
   id: root
 
   property var bar: null
-  property string moduleName: "io.github.olliethomas1992.cliamp-visualiser"
+  property string moduleName: "io.github.ollieedgeley.cliamp-visualiser"
   property var settings: ({})
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string stateHome: Quickshell.env("XDG_STATE_HOME") || (home + "/.local/state")
@@ -18,6 +18,8 @@ Item {
   property var cliampLevels: []
   property var cliampPeaks: []
   property bool cliampMeterAvailable: false
+  property bool visualizerLocked: false
+  property int pendingCycleRequests: 0
 
   property color fallbackForeground: "#c5c9c5"
   property color fallbackAccent: "#658594"
@@ -71,6 +73,44 @@ Item {
 
   function rendererNeedsMeter(renderer) {
     return renderer === "stereo"
+  }
+
+  function interactionForButton(button) {
+    if (button === Qt.RightButton) {
+      visualizerLocked = !visualizerLocked
+      return visualizerLocked ? "locked" : "unlocked"
+    }
+    if (button === Qt.LeftButton && !visualizerLocked)
+      return "cycle"
+    return "none"
+  }
+
+  function notificationForLockState(locked) {
+    return locked
+      ? { headline: "Visualiser locked", glyph: "󰌾" }
+      : { headline: "Visualiser unlocked", glyph: "" }
+  }
+
+  function runNextCycle() {
+    if (pendingCycleRequests <= 0 || cycleProc.running)
+      return
+    pendingCycleRequests--
+    cycleProc.running = true
+  }
+
+  function handlePointerButton(button) {
+    var action = interactionForButton(button)
+    if (action === "cycle") {
+      pendingCycleRequests++
+      runNextCycle()
+      return
+    }
+    if (action === "locked" || action === "unlocked") {
+      var notice = notificationForLockState(action === "locked")
+      Quickshell.execDetached([
+        "omarchy", "notification", "send", notice.headline, "-g", notice.glyph
+      ])
+    }
   }
 
   function normalizedPair(value) {
@@ -232,6 +272,13 @@ Item {
     onExited: root.clearBands()
   }
 
+  Process {
+    id: cycleProc
+    command: ["cliamp", "vis", "next"]
+    running: false
+    onExited: root.runNextCycle()
+  }
+
   AudioMeter {
     id: audioMeter
     active: root.audioFallbackRequired
@@ -249,5 +296,12 @@ Item {
     lowColor: root.lowColor
     midColor: root.midColor
     highColor: root.highColor
+  }
+
+  MouseArea {
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    cursorShape: Qt.PointingHandCursor
+    onClicked: function(mouse) { root.handlePointerButton(mouse.button) }
   }
 }
