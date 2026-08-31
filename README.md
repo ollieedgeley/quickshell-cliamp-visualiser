@@ -1,26 +1,28 @@
 # Cliamp Visualiser
 
-Cliamp's visualisers, alive in your Omarchy bar. It follows the active mode and colours in real time, with a local stereo meter when Cliamp does not expose the data itself.
+Cliamp's visualisers, alive in your Omarchy bar. It follows the active mode and colours in real time.
 
 ## 📸 Preview
 
-![Cliamp and its matching Omarchy bar visualiser](preview.png)
+<p align="center">
+  <img src="preview.png" alt="Cliamp and its matching Omarchy bar visualiser" width="800">
+</p>
+
+## 🎨 Theme-aware
+
+The bar follows Cliamp's colours as you switch themes.
+
+<p align="center">
+  <img src="theme-preview.png" alt="Cliamp Visualiser using a red and yellow theme" width="800">
+</p>
 
 ## ✨ Highlights
 
 - 🎨 Mirrors Cliamp's active visualiser and theme colours.
 - ⚡ Animates at 30 FPS only while music is playing.
-- ↔️ Adds local stereo metering when a mode needs missing channel data.
+- ↔️ Drives stereo modes with a lightweight local audio meter.
 - 🖱️ Left-click cycles modes. Right-click locks or unlocks switching.
 - 📐 Fills its bar slot and scales each effect to fit.
-
-## 📦 Requirements
-
-- 🎵 Cliamp with `status --json` and `visstream` support.
-- 🖥️ Omarchy Quattro with shell plugin support.
-- 🔧 `cc`, `pkg-config`, and the `libpulse` headers for the stereo fallback.
-
-The fallback helper compiles once into `~/.cache/quickshell-cliamp-visualiser`.
 
 ## 🚀 Install
 
@@ -41,3 +43,7 @@ You can also delete the compiled fallback cache at `~/.cache/quickshell-cliamp-v
 ```bash
 omarchy plugin validate .
 ```
+
+## ⚖️ License
+
+[MIT](LICENSE) © 2026 Ollie Edgeley
