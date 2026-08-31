@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.olliethomas1992.cliamp-visualiser",
+  "name": "Cliamp Visualiser",
+  "version": "1.0.1",
+  "author": "olliethomas1992",
+  "description": "Renders Cliamp spectrum bands in the bar while playback is active.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Cliamp Visualiser",
+    "description": "Spectrum visualizer for Cliamp playback",
+    "category": "Audio",
+    "allowMultiple": false
+  }
+}
