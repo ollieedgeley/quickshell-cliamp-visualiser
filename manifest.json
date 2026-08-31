@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.ollieedgeley.cliamp-visualiser",
   "name": "Cliamp Visualiser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Ollie Edgeley",
   "license": "MIT",
   "description": "Mirrors Cliamp's live visualisers and colours in the Omarchy bar.",

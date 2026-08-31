@@ -52,7 +52,7 @@ Item {
 
   implicitWidth: Math.max(104, slotSize * 4)
   implicitHeight: slotSize
-  visible: playing && rendererKind !== "none"
+  visible: playing
 
   function rendererFor(name) {
     var key = String(name || "Bars").toLowerCase().replace(/[^a-z]/g, "")

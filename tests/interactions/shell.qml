@@ -1,7 +1,22 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 
 ShellRoot {
+  Window {
+    id: window
+    width: 140
+    height: 46
+    visible: true
+
+    Item {
+      id: host
+      anchors.centerIn: parent
+      width: 120
+      height: 26
+    }
+  }
+
   Component.onCompleted: {
     var component = Qt.createComponent("file://" + Quickshell.env("PLUGIN_ROOT") + "/BarWidget.qml")
     if (component.status !== Component.Ready) {
@@ -10,7 +25,7 @@ ShellRoot {
       return
     }
 
-    var widget = component.createObject(null, { width: 120, height: 26 })
+    var widget = component.createObject(host, { width: 120, height: 26 })
     var startsUnlocked = widget.visualizerLocked === false
     var locks = widget.interactionForButton(Qt.RightButton) === "locked"
              && widget.visualizerLocked === true
@@ -18,6 +33,13 @@ ShellRoot {
     var unlocks = widget.interactionForButton(Qt.RightButton) === "unlocked"
                && widget.visualizerLocked === false
     var unlockedCycles = widget.interactionForButton(Qt.LeftButton) === "cycle"
+
+    widget.playing = true
+    widget.visualizerName = "None"
+    var noneCycleAction = widget.interactionForButton(Qt.LeftButton)
+    var noneKeepsHitTarget = widget.visible === true
+                          && widget.implicitWidth === Math.max(104, widget.slotSize * 4)
+                          && noneCycleAction === "cycle"
 
     var lockedNotice = widget.notificationForLockState(true)
     var unlockedNotice = widget.notificationForLockState(false)
@@ -27,12 +49,13 @@ ShellRoot {
                     && unlockedNotice.glyph === ""
 
     if (startsUnlocked && locks && lockedBlocksCycle && unlocks
-        && unlockedCycles && noticesMatch)
+        && unlockedCycles && noneKeepsHitTarget && noticesMatch)
       console.log("INTERACTION_PASS")
     else
       console.error("INTERACTION_FAIL start=" + startsUnlocked
                     + " locks=" + locks + " blocked=" + lockedBlocksCycle
                     + " unlocks=" + unlocks + " cycles=" + unlockedCycles
+                    + " noneHitTarget=" + noneKeepsHitTarget
                     + " notices=" + noticesMatch)
 
     widget.destroy()
