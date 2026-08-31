@@ -5,16 +5,16 @@ import Quickshell
 ShellRoot {
   Window {
     id: window
-    width: 240
-    height: 60
+    width: visualizerHost.width + 20
+    height: visualizerHost.height + 20
     visible: true
     color: "#1e2229"
 
     Item {
       id: visualizerHost
       anchors.centerIn: parent
-      width: 220
-      height: 40
+      width: Number(Quickshell.env("RENDER_WIDTH")) || 220
+      height: Number(Quickshell.env("RENDER_HEIGHT")) || 40
     }
 
     Timer {
@@ -44,7 +44,7 @@ ShellRoot {
       component.createObject(visualizerHost, {
         width: visualizerHost.width,
         height: visualizerHost.height,
-        mode: "classicled",
+        mode: Quickshell.env("VISUALIZER_MODE") || "classicled",
         bands: [0.25, 0.45, 0.65, 0.85, 1.0, 0.85, 0.65, 0.45, 0.25],
         foregroundColor: "#ffffff",
         accentColor: "#0088ff",
